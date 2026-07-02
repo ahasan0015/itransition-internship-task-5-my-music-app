@@ -37,10 +37,14 @@ export default function SongTable() {
       <div className="row mb-4 align-items-center bg-light p-3 border rounded shadow-sm">
         <div className="col-md-3">
           <label className="small text-muted fw-bold">Language</label>
-          <select className="form-select">
-            <option>English (US)</option>
-            <option>Bengali</option>
-            <option>Germany</option>
+          <select
+            className="form-select"
+            value={params.lang}
+            onChange={(e) => setParams({ ...params, lang: e.target.value })}
+          >
+            <option value="en">English (US)</option>
+            <option value="bn">Bengali</option>
+            <option value="ger">Germany</option>
           </select>
         </div>
 
@@ -50,25 +54,37 @@ export default function SongTable() {
             <input
               type="number"
               className="form-control"
-              value="58933423"
-              readOnly
+              value={params.seed}
+              onChange={(e) =>
+                setParams({ ...params, seed: parseInt(e.target.value) || 0 })
+              }
             />
-            <button className="btn btn-outline-secondary">
+            <button
+              className="btn btn-outline-secondary"
+              onClick={() =>
+                setParams({
+                  ...params,
+                  seed: Math.floor(Math.random() * 100000000),
+                })
+              }
+            >
               <i className="bi bi-shuffle"></i>
             </button>
           </div>
         </div>
-
+        {/* Likes slider */}
         <div className="col-md-4">
-          <label className="small text-muted fw-bold">Likes: 3.7</label>
+          <label className="small text-muted fw-bold">
+            Likes: {params.avgLikes}
+          </label>
           <input
             type="range"
             className="form-range"
             min="0"
             max="10"
             step="0.1"
-            value="3.7"
-            readOnly
+            value={params.avgLikes}
+            onChange={(e) => setParams({ ...params, avgLikes: parseFloat(e.target.value) })}
           />
         </div>
 
