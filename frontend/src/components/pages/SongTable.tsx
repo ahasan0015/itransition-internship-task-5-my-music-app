@@ -15,6 +15,7 @@ export default function SongTable() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
+  const [page, setPage] = useState(1);
   const [params, setParams] = useState({
     lang: "en",
     seed: 58933423,
@@ -22,14 +23,48 @@ export default function SongTable() {
   });
 
   useEffect(() => {
+    const requestParams = { ...params, page };
     api
-      .get("/songs", { params })
+      .get("/songs", { params: requestParams })
       .then((res) => {
         console.log("API Response:", res.data); // res.data
-        setSongs(res.data.data);
+        // setSongs(res.data.data);
+        if (viewMode === "grid") {
+          // grid view
+          setSongs((prev) =>
+            page === 1 ? res.data.data : [...prev, ...res.data.data],
+          );
+        } else {
+          // table view 
+          setSongs(res.data.data);
+        }
       })
       .catch((err) => console.error("Error:", err));
-  }, [params]);
+  }, [params, page, viewMode]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // only grid mood for scrolling
+      if (viewMode === "grid") {
+        if (
+          window.innerHeight + window.scrollY >=
+          document.body.offsetHeight - 500
+        ) {
+          setPage((prev) => prev + 1);
+        }
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [viewMode]);
+
+  //view mode
+  const switchView = (mode: "table" | "grid") => {
+    setViewMode(mode);
+    setPage(1);
+    setSongs([]);
+  };
 
   return (
     <div className="container mt-4">
@@ -40,7 +75,10 @@ export default function SongTable() {
           <select
             className="form-select"
             value={params.lang}
-            onChange={(e) => setParams({ ...params, lang: e.target.value })}
+            onChange={(e) => {
+              setPage(1);
+              setParams({ ...params, lang: e.target.value });
+            }}
           >
             <option value="en">English (US)</option>
             <option value="bn">Bengali</option>
@@ -55,9 +93,10 @@ export default function SongTable() {
               type="number"
               className="form-control"
               value={params.seed}
-              onChange={(e) =>
-                setParams({ ...params, seed: parseInt(e.target.value) || 0 })
-              }
+              onChange={(e) => {
+                setPage(1);
+                setParams({ ...params, seed: parseInt(e.target.value) || 0 });
+              }}
             />
             <button
               className="btn btn-outline-secondary"
@@ -84,7 +123,9 @@ export default function SongTable() {
             max="10"
             step="0.1"
             value={params.avgLikes}
-            onChange={(e) => setParams({ ...params, avgLikes: parseFloat(e.target.value) })}
+            onChange={(e) =>
+              setParams({ ...params, avgLikes: parseFloat(e.target.value) })
+            }
           />
         </div>
 
@@ -92,13 +133,13 @@ export default function SongTable() {
           <div className="btn-group">
             <button
               className={`btn ${viewMode === "grid" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setViewMode("grid")}
+              onClick={() => switchView("grid")}
             >
               <i className="bi bi-grid-3x3-gap-fill"></i>
             </button>
             <button
               className={`btn ${viewMode === "table" ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setViewMode("table")}
+              onClick={() => switchView("table")}
             >
               <i className="bi bi-layout-text-window-reverse"></i>
             </button>
@@ -198,30 +239,35 @@ export default function SongTable() {
         </div>
       )}
 
-      {/* Pagination */}
-      <nav className="d-flex justify-content-center mt-4">
-        <ul className="pagination">
-          <li className="page-item">
-            <button className="page-link">&laquo;</button>
-          </li>
+      {/* Pagination (Only for Table View) */}
+      {viewMode === "table" && (
+        <nav className="d-flex justify-content-center mt-4">
+          <ul className="pagination">
+            {/* Previous Button */}
+            <li className={`page-item ${page === 1 ? "disabled" : ""}`}>
+              <button className="page-link" onClick={() => setPage(page - 1)}>
+                &laquo; Prev
+              </button>
+            </li>
 
-          <li className="page-item">
-            <button className="page-link">4</button>
-          </li>
+            {/* Dynamic Page Numbers */}
+            {[page, page + 1, page + 2].map((p) => (
+              <li key={p} className={`page-item ${page === p ? "active" : ""}`}>
+                <button className="page-link" onClick={() => setPage(p)}>
+                  {p}
+                </button>
+              </li>
+            ))}
 
-          <li className="page-item active">
-            <button className="page-link">5</button>
-          </li>
-
-          <li className="page-item">
-            <button className="page-link">6</button>
-          </li>
-
-          <li className="page-item">
-            <button className="page-link">&raquo;</button>
-          </li>
-        </ul>
-      </nav>
+            {/* Next Button */}
+            <li className="page-item">
+              <button className="page-link" onClick={() => setPage(page + 1)}>
+                Next &raquo;
+              </button>
+            </li>
+          </ul>
+        </nav>
+      )}
     </div>
   );
 }
