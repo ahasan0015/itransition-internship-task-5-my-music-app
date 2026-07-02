@@ -11,9 +11,10 @@ interface Song {
   album: string;
 }
 
-export default function SongTable2() {
+export default function SongTable() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [params, setParams] = useState({
     lang: "en",
     seed: 58933423,
@@ -73,10 +74,16 @@ export default function SongTable2() {
 
         <div className="col-md-2 text-end">
           <div className="btn-group">
-            <button className="btn btn-outline-primary">
+            <button
+              className={`btn ${viewMode === "grid" ? "btn-primary" : "btn-outline-primary"}`}
+              onClick={() => setViewMode("grid")}
+            >
               <i className="bi bi-grid-3x3-gap-fill"></i>
             </button>
-            <button className="btn btn-primary">
+            <button
+              className={`btn ${viewMode === "table" ? "btn-primary" : "btn-outline-primary"}`}
+              onClick={() => setViewMode("table")}
+            >
               <i className="bi bi-layout-text-window-reverse"></i>
             </button>
           </div>
@@ -84,78 +91,96 @@ export default function SongTable2() {
       </div>
 
       {/* Table */}
-      <div className="table-responsive">
-        <table className="table table-hover align-middle">
-          <thead className="table-light">
-            <tr>
-              <th style={{ width: "5%" }}>#</th>
-              <th>Song</th>
-              <th>Artist</th>
-              <th>Album</th>
-              <th>Genre</th>
-            </tr>
-          </thead>
+      {viewMode === "table" ? (
+        <div className="table-responsive">
+          <table className="table table-hover align-middle">
+            <thead className="table-light">
+              <tr>
+                <th style={{ width: "5%" }}>#</th>
+                <th>Song</th>
+                <th>Artist</th>
+                <th>Album</th>
+                <th>Genre</th>
+              </tr>
+            </thead>
 
-          <tbody>
-            {songs.map((song) => (
-              <React.Fragment key={song.id}>
-                <tr
-                  onClick={() =>
-                    setExpandedId(expandedId === song.id ? null : song.id)
-                  }
-                  style={{ cursor: "pointer" }}
-                  className={expandedId === song.id ? "table-active" : ""}
-                >
-                  <td>
-                    <i
-                      className={`bi bi-chevron-${expandedId === song.id ? "up" : "down"} me-2`}
-                    ></i>
-                    {song.id}
-                  </td>
-                  <td className="fw-semibold">{song.title}</td>
-                  <td>{song.artist}</td>
-                  <td>{song.album}</td>
-                  <td>
-                    <span className="badge bg-secondary">{song.genre}</span>
-                  </td>
-                </tr>
-
-                {/* Sample Expanded Row */}
-                {expandedId === song.id && (
-                  <tr className="bg-white">
-                    <td colSpan={5} className="p-4 border-bottom">
-                      <div className="d-flex align-items-center gap-4">
-                        <div
-                          className="bg-dark rounded text-white d-flex align-items-center justify-content-center"
-                          style={{ width: "120px", height: "120px" }}
-                        >
-                          Art
-                        </div>
-
-                        <div>
-                          <h4 className="mb-1">
-                            {song.title}
-                            <i className="bi bi-play-circle-fill text-primary"></i>
-                          </h4>
-
-                          <p className="text-muted mb-2">
-                            From {song.album} by {song.artist}
-                          </p>
-
-                          <button className="btn btn-sm btn-outline-primary">
-                            <i className="bi bi-hand-thumbs-up"></i> Like{" "}
-                            {song.likes}
-                          </button>
-                        </div>
-                      </div>
+            <tbody>
+              {songs.map((song) => (
+                <React.Fragment key={song.id}>
+                  <tr
+                    onClick={() =>
+                      setExpandedId(expandedId === song.id ? null : song.id)
+                    }
+                    style={{ cursor: "pointer" }}
+                    className={expandedId === song.id ? "table-active" : ""}
+                  >
+                    <td>
+                      <i
+                        className={`bi bi-chevron-${expandedId === song.id ? "up" : "down"} me-2`}
+                      ></i>
+                      {song.id}
+                    </td>
+                    <td className="fw-semibold">{song.title}</td>
+                    <td>{song.artist}</td>
+                    <td>{song.album}</td>
+                    <td>
+                      <span className="badge bg-secondary">{song.genre}</span>
                     </td>
                   </tr>
-                )}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+                  {/* Sample Expanded Row */}
+                  {expandedId === song.id && (
+                    <tr className="bg-white">
+                      <td colSpan={5} className="p-4 border-bottom">
+                        <div className="d-flex align-items-center gap-4">
+                          <div
+                            className="bg-dark rounded text-white d-flex align-items-center justify-content-center"
+                            style={{ width: "120px", height: "120px" }}
+                          >
+                            Art
+                          </div>
+
+                          <div>
+                            <h4 className="mb-1">
+                              {song.title}
+                              <i className="bi bi-play-circle-fill text-primary"></i>
+                            </h4>
+
+                            <p className="text-muted mb-2">
+                              From {song.album} by {song.artist}
+                            </p>
+
+                            <button className="btn btn-sm btn-outline-primary">
+                              <i className="bi bi-hand-thumbs-up"></i> Like{" "}
+                              {song.likes}
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="row g-4">
+          {songs.map((song) => (
+            <div key={song.id} className="col-12 col-md-6 col-lg-4">
+              <div className="card shadow-sm h-100">
+                <div className="card-body">
+                  <h5 className="card-title">{song.title}</h5>
+                  <p className="card-text text-muted">
+                    {song.artist} - {song.album}
+                  </p>
+                  <span className="badge bg-secondary">{song.genre}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Pagination */}
       <nav className="d-flex justify-content-center mt-4">
