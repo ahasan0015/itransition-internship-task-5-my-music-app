@@ -12,6 +12,7 @@ interface Song {
   likes: number;
   duration: string;
   album: string;
+  review: string;
   music_theory: {
     tempo: number;
     scale: string;
@@ -398,6 +399,23 @@ export default function SongTable() {
                               <i className="bi bi-hand-thumbs-up"></i> Like{" "}
                               {song.likes}
                             </button>
+
+                            {/* Review Section */}
+                            <div className="mt-3 pt-2 border-top">
+                              <small
+                                className="text-muted text-uppercase fw-bold"
+                                style={{ fontSize: "0.7rem" }}
+                              >
+                                Listener Review
+                              </small>
+                              <p
+                                className="fst-italic text-secondary"
+                                style={{ fontSize: "0.95rem" }}
+                              >
+                                <i className="bi bi-chat-quote-fill me-1"></i> "
+                                {song.review}"
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </td>
