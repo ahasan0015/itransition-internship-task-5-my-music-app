@@ -23,7 +23,7 @@ class SongController extends Controller
         $songs = [];
         $faker = Faker::create(); // Faker initialization
 
-        for ($i = 0; $i < 20; $i++) {
+        for ($i = 0; $i < 10; $i++) {
             //core data generation (seed, page, index)
             $coreSeed = $seed + $page + $i;
             $faker->seed($coreSeed);
@@ -41,13 +41,15 @@ class SongController extends Controller
             $likes = $this->calculateLikes($avgLikes, $likesGenerator);
 
             $songs[] = [
-                'id' => (($page - 1) * 20) + $i + 1,
+                'id' => (($page - 1) * 10) + $i + 1,
                 'title' => $title,
                 'artist' => $artist,
                 'album' => $album,
                 'genre' => $genre,
                 'likes' => $likes,
-                'duration' => $duration
+                'duration' => $duration,
+                // $duration 
+                'music_theory' => $this->getMusicTheory($seed, $page, $i, $duration) 
             ];
         }
 
@@ -67,4 +69,37 @@ class SongController extends Controller
         }
         return (int)$baseLikes;
     }
+
+public function getMusicTheory(int $seed, int $page, int $index, string $duration) 
+{
+    $coreSeed = $seed + $page + $index;
+    $gen = new SequenceGenerator($coreSeed);
+
+    return [
+        'tempo' => $gen->nextInt(80, 140),
+        'scale' => 'C Major',
+        'progression' => ['I', 'V', 'vi', 'IV'],
+        'notes' => $this->generateNotes($gen, $duration), 
+    ];
+}
+
+private function generateNotes($gen, $totalDuration)
+{
+    //ringtone scale (Pentatonic Scale)
+    $scale = ['C4', 'E4', 'G4', 'A4', 'C5']; 
+    $notes = [];
+    $durationInSeconds = (int)str_replace('s', '', $totalDuration);
+    
+    // each second has 2 notes (total duration doubled)
+    $noteCount = $durationInSeconds * 2; 
+
+    for ($i = 0; $i < $noteCount; $i++) {
+        $notes[] = [
+            'note' => $scale[$gen->nextInt(0, 4)],
+            'duration' => ($i % 4 === 0) ? '2n' : '8n',
+            'time' => $i * 0.5 
+        ];
+    }
+    return $notes;
+}
 }
