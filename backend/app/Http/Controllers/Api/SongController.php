@@ -173,25 +173,6 @@ private function generatePowerfulMelody($gen, $totalDuration, $chords, $progress
     return $notes;
 }
 
-private function generateUniqueNotes($gen, $totalDuration, $scale, $rhythm)
-{
-    $notes = [];
-    $durationInSeconds = (int)str_replace('s', '', $totalDuration);
-    $noteCount = $durationInSeconds * 2; 
-
-    for ($i = 0; $i < $noteCount; $i++) {
-        // rhythm-based duration calculation
-        $dur = ($rhythm === 'steady' && $i % 2 === 0) ? '4n' : '8n';
-        if ($rhythm === 'sparse' && $i % 3 !== 0) continue; // create gaps occasionally
-
-        $notes[] = [
-            'note' => $scale[$gen->nextInt(0, count($scale) - 1)],
-            'duration' => $dur,
-            'time' => $i * 0.5 
-        ];
-    }
-    return $notes;
-}
 private function generateRandomReview(SequenceGenerator $gen, string $lang): string
     {
         $reviews = [
