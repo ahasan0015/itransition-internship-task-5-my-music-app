@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../../Config";
+import * as Tone from "tone";
+import "../../styles/music_slider.css";
 
 interface Song {
   id: number;
@@ -9,6 +11,12 @@ interface Song {
   likes: number;
   duration: string;
   album: string;
+  music_theory: {
+    tempo: number;
+    scale: string;
+    progression: string[];
+    notes: { note: string; duration: string; time: number }[];
+  };
 }
 
 export default function SongTable() {
@@ -16,12 +24,18 @@ export default function SongTable() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [page, setPage] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playingId, setPlayingId] = useState<number | null>(null);
+  const synthRef = React.useRef<Tone.PolySynth | null>(null);
+
   const [params, setParams] = useState({
     lang: "en",
     seed: 58933423,
     avgLikes: 3.7,
   });
 
+  // Use effect for songTable API call
   useEffect(() => {
     const requestParams = { ...params, page };
     api
@@ -35,13 +49,14 @@ export default function SongTable() {
             page === 1 ? res.data.data : [...prev, ...res.data.data],
           );
         } else {
-          // table view 
+          // table view
           setSongs(res.data.data);
         }
       })
       .catch((err) => console.error("Error:", err));
   }, [params, page, viewMode]);
 
+  // Infinite scroll for grid view
   useEffect(() => {
     const handleScroll = () => {
       // only grid mood for scrolling
@@ -64,6 +79,104 @@ export default function SongTable() {
     setViewMode(mode);
     setPage(1);
     setSongs([]);
+  };
+
+  //for pausing the song when user clicks on another song or pause button
+  function pauseSong() {
+    const transport = Tone.getTransport();
+    transport.stop();
+    transport.cancel();
+    setIsPlaying(false);
+    setPlayingId(null);
+    setCurrentTime(0);
+  }
+
+  useEffect(() => {
+    if (isPlaying && playingId !== null) {
+      const song = songs.find((s) => s.id === playingId);
+      if (!song) return;
+
+      // synth initialization and transport setup
+      const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+      synthRef.current = synth;
+
+      const transport = Tone.getTransport();
+      transport.stop();
+      transport.cancel();
+      transport.bpm.value = song.music_theory.tempo;
+
+      const part = new Tone.Part((time, value) => {
+        synth.triggerAttackRelease(value.note, value.duration, time);
+      }, song.music_theory.notes);
+
+      part.start(0);
+
+      // auto stop logic
+      const durationInSeconds = parseInt(song.duration.replace("s", ""));
+      transport.scheduleOnce(() => {
+        pauseSong();
+      }, `${durationInSeconds}s`);
+
+      transport.start();
+
+      return () => {
+        transport.stop();
+        transport.cancel();
+        synth.dispose();
+        synthRef.current = null;
+      };
+    }
+  }, [isPlaying, playingId, songs]);
+
+  //for playing a song
+
+  async function playSong(song: Song) {
+    // browser audio context initialization
+    await Tone.start();
+
+    if (playingId === song.id) {
+      pauseSong();
+    } else {
+      pauseSong();
+      setPlayingId(song.id);
+      setIsPlaying(true);
+    }
+  }
+
+  useEffect(() => {
+    // undefined or number type for animation frame ID
+    let animationFrameId: number | undefined;
+
+    const updateTime = () => {
+      if (isPlaying) {
+        setCurrentTime(Tone.getTransport().seconds);
+        //recursively call updateTime for the next frame
+        animationFrameId = requestAnimationFrame(updateTime);
+      }
+    };
+
+    if (isPlaying) {
+      animationFrameId = requestAnimationFrame(updateTime);
+    } else {
+      // if id available, cancel the animation frame
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    }
+
+    // cleanup function to cancel animation
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [isPlaying]);
+
+  // second MM:SS format function
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
   return (
@@ -129,6 +242,7 @@ export default function SongTable() {
           />
         </div>
 
+        {/* view mode buttons */}
         <div className="col-md-2 text-end">
           <div className="btn-group">
             <button
@@ -165,9 +279,13 @@ export default function SongTable() {
               {songs.map((song) => (
                 <React.Fragment key={song.id}>
                   <tr
-                    onClick={() =>
-                      setExpandedId(expandedId === song.id ? null : song.id)
-                    }
+                    onClick={() => {
+                      // if click on a different row, stop the current song
+                      if (expandedId !== song.id) {
+                        pauseSong();
+                      }
+                      setExpandedId(expandedId === song.id ? null : song.id);
+                    }}
                     style={{ cursor: "pointer" }}
                     className={expandedId === song.id ? "table-active" : ""}
                   >
@@ -196,12 +314,59 @@ export default function SongTable() {
                           >
                             Art
                           </div>
+                          <div className="mt-3">
+                            {/* play button and time bar in one line */}
+                            <div className="d-flex align-items-center gap-3">
+                              <i
+                                className={`bi ${isPlaying && playingId === song.id ? "bi-pause-circle-fill" : "bi-play-circle-fill"} text-primary`}
+                                onClick={() => playSong(song)}
+                                style={{
+                                  fontSize: "2rem",
+                                  cursor: "pointer",
+                                  transition: "transform 0.2s ease", //for smooth hover
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.transform =
+                                    "scale(1.1)")
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.transform = "scale(1)")
+                                }
+                              ></i>
 
+                              {/* slider container */}
+                              <div className="flex-grow-1">
+                                <div className="d-flex justify-content-between text-muted small fw-bold mb-1">
+                                  <span>{formatTime(currentTime)}</span>
+                                  <span>
+                                    {formatTime(
+                                      parseInt(song.duration.replace("s", "")),
+                                    )}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  className="custom-audio-slider"
+                                  min="0"
+                                  max={parseInt(song.duration.replace("s", ""))}
+                                  value={currentTime}
+                                  // progress percentage calculation
+                                  style={
+                                    {
+                                      "--progress": `${(currentTime / parseInt(song.duration.replace("s", ""))) * 100}%`,
+                                    } as React.CSSProperties
+                                  }
+                                  onChange={(e) => {
+                                    const seekTime = parseFloat(e.target.value);
+                                    Tone.getTransport().seconds = seekTime;
+                                    setCurrentTime(seekTime);
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
                           <div>
-                            <h4 className="mb-1">
-                              {song.title}
-                              <i className="bi bi-play-circle-fill text-primary"></i>
-                            </h4>
+                            <h4 className="mb-1">{song.title}</h4>
 
                             <p className="text-muted mb-2">
                               From {song.album} by {song.artist}

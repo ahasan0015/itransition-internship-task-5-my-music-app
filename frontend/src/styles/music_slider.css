@@ -1,0 +1,27 @@
+.custom-audio-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0; /* ট্র্যাকের ধূসর রঙ */
+  border-radius: 5px;
+  outline: none;
+}
+
+/* Chrome, Safari, Edge এর জন্য রঙিন ট্র্যাক */
+.custom-audio-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  background: linear-gradient(to right, #0d6efd 0%, #0d6efd var(--progress), #e2e8f0 var(--progress), #e2e8f0 100%);
+  border-radius: 5px;
+}
+
+/* স্লাইডার থাম্ব স্টাইল */
+.custom-audio-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #0d6efd;
+  border-radius: 50%;
+  cursor: pointer;
+  margin-top: -5px; /* থাম্বকে সেন্টারে আনার জন্য */
+}
