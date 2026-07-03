@@ -1,4 +1,4 @@
-import SongTable from "./components/pages/SongTable";
+import SongTable from "./pages/SongTable";
 
 
 

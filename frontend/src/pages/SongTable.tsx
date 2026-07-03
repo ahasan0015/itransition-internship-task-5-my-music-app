@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import api from "../../Config";
+import api from "../Config";
 import * as Tone from "tone";
-import "../../styles/music_slider.css";
+import "../styles/music_slider.css";
+import AlbumCover from "../components/AlbumCover";
 
 interface Song {
   id: number;
@@ -309,13 +310,18 @@ export default function SongTable() {
                       <td colSpan={5} className="p-4 border-bottom">
                         <div className="d-flex align-items-center gap-4">
                           <div
-                            className="bg-dark rounded text-white d-flex align-items-center justify-content-center"
+                            className="bg-dark rounded"
                             style={{ width: "120px", height: "120px" }}
                           >
-                            Art
+                            {/* album cover from utils/CoverGenerator.ts */}
+                            <AlbumCover
+                              title={song.title} // each song data
+                              artist={song.artist}
+                            />
                           </div>
+
+                          {/* play button and time bar in one line */}
                           <div className="mt-3">
-                            {/* play button and time bar in one line */}
                             <div className="d-flex align-items-center gap-3">
                               <i
                                 className={`bi ${isPlaying && playingId === song.id ? "bi-pause-circle-fill" : "bi-play-circle-fill"} text-primary`}

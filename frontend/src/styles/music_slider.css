@@ -1,13 +1,17 @@
-.custom-audio-slider {
+
+button {
   -webkit-appearance: none;
+  appearance: none;
+}
+.custom-audio-slider {
   width: 100%;
   height: 6px;
-  background: #e2e8f0; /* ট্র্যাকের ধূসর রঙ */
+  background: #e2e8f0; 
   border-radius: 5px;
   outline: none;
 }
 
-/* Chrome, Safari, Edge এর জন্য রঙিন ট্র্যাক */
+/* Chrome, Safari, Edge*/
 .custom-audio-slider::-webkit-slider-runnable-track {
   width: 100%;
   height: 6px;
@@ -15,7 +19,7 @@
   border-radius: 5px;
 }
 
-/* স্লাইডার থাম্ব স্টাইল */
+/* slider thumb */
 .custom-audio-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 16px;
@@ -23,5 +27,5 @@
   background: #0d6efd;
   border-radius: 50%;
   cursor: pointer;
-  margin-top: -5px; /* থাম্বকে সেন্টারে আনার জন্য */
+  margin-top: -5px; /* for centering the thumb */
 }
