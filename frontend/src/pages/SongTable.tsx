@@ -16,7 +16,12 @@ interface Song {
     tempo: number;
     scale: string;
     progression: string[];
-    notes: { note: string; duration: string; time: number }[];
+    notes: {
+      note: string;
+      duration: string;
+      time: number;
+      velocity?: number;
+    }[];
   };
 }
 
@@ -28,7 +33,8 @@ export default function SongTable() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingId, setPlayingId] = useState<number | null>(null);
-  const synthRef = React.useRef<Tone.PolySynth | null>(null);
+  const reverbRef = React.useRef<Tone.Reverb | null>(null);
+  const synthRef = React.useRef<Tone.AMSynth | null>(null);
 
   const [params, setParams] = useState({
     lang: "en",
@@ -97,8 +103,23 @@ export default function SongTable() {
       const song = songs.find((s) => s.id === playingId);
       if (!song) return;
 
-      // synth initialization and transport setup
-      const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+      // loud sound Volume node
+      const vol = new Tone.Volume(5).toDestination(); // +5dB volume boost
+
+      // ringtom vibe Reverb
+      const reverb = new Tone.Reverb({ decay: 1.5, wet: 0.2 }).connect(vol);
+      reverbRef.current = reverb;
+
+      // rington sound AMSynth high quality sound
+      const synth = new Tone.AMSynth({
+        harmonicity: 3, // this will make the sound much brighter
+        detune: 0,
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.5 },
+        modulation: { type: "square" },
+        modulationEnvelope: { attack: 0.1, decay: 0, sustain: 1, release: 0.5 },
+      }).connect(reverb);
+
       synthRef.current = synth;
 
       const transport = Tone.getTransport();
@@ -107,24 +128,19 @@ export default function SongTable() {
       transport.bpm.value = song.music_theory.tempo;
 
       const part = new Tone.Part((time, value) => {
-        synth.triggerAttackRelease(value.note, value.duration, time);
+        // rhythm-based velocity control
+        synth.triggerAttackRelease(value.note, "8n", time, value.velocity || 1);
       }, song.music_theory.notes);
 
       part.start(0);
-
-      // auto stop logic
-      const durationInSeconds = parseInt(song.duration.replace("s", ""));
-      transport.scheduleOnce(() => {
-        pauseSong();
-      }, `${durationInSeconds}s`);
-
       transport.start();
 
       return () => {
         transport.stop();
         transport.cancel();
-        synth.dispose();
-        synthRef.current = null;
+        if (synthRef.current) synthRef.current.dispose();
+        if (reverbRef.current) reverbRef.current.dispose();
+        vol.dispose();
       };
     }
   }, [isPlaying, playingId, songs]);
