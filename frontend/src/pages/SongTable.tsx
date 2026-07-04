@@ -167,34 +167,41 @@ export default function SongTable() {
     }
   }
 
+  //useEffect for updating the current
+  //time of the song and checking if it has ended
   useEffect(() => {
-    // undefined or number type for animation frame ID
-    let animationFrameId: number | undefined;
+    let animationFrameId: number;
 
     const updateTime = () => {
-      if (isPlaying) {
-        setCurrentTime(Tone.getTransport().seconds);
-        //recursively call updateTime for the next frame
+      if (isPlaying && playingId !== null) {
+        // find the current song based on playingId
+        const currentSong = songs.find((s) => s.id === playingId);
+        if (currentSong) {
+          const songDuration = parseInt(currentSong.duration.replace("s", ""));
+          const currentTime = Tone.getTransport().seconds;
+
+          // check if the song has ended
+          if (currentTime >= songDuration) {
+            pauseSong(); // this will stop the automatic player
+            return; // break the loop
+          }
+
+          setCurrentTime(currentTime);
+        }
         animationFrameId = requestAnimationFrame(updateTime);
       }
     };
 
     if (isPlaying) {
       animationFrameId = requestAnimationFrame(updateTime);
-    } else {
-      // if id available, cancel the animation frame
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
     }
 
-    // cleanup function to cancel animation
     return () => {
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [isPlaying]);
+  }, [isPlaying, playingId, songs]);
 
   // second MM:SS format function
   const formatTime = (seconds: number) => {
