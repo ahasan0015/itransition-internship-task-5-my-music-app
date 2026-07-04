@@ -1,0 +1,62 @@
+/* slider basic style */
+.custom-audio-slider {
+  -webkit-appearance: none; /* remove brower default */
+  appearance: none;
+  height: 6px;
+  background: #e2e8f0; /* track background */
+  border-radius: 5px;
+  outline: none;
+  cursor: pointer;
+  transition: height 0.2s;
+}
+
+/* when mouse hovers over the slider, it will become slightly thicker (for a professional look) */
+.custom-audio-slider:hover {
+  height: 8px;
+}
+
+/* Chrome, Safari, Edge */
+.custom-audio-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 100%;
+  /* this update --progress  with color update */
+  background: linear-gradient(to right, #0d6efd 0%, #0d6efd var(--progress), #e2e8f0 var(--progress), #e2e8f0 100%);
+  border-radius: 5px;
+}
+
+/* Firefox */
+.custom-audio-slider::-moz-range-track {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, #0d6efd 0%, #0d6efd var(--progress), #e2e8f0 var(--progress), #e2e8f0 100%);
+  border-radius: 5px;
+}
+
+/* slider thumb */
+.custom-audio-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #ffffff; /* thumb background */
+  border: 2px solid #0d6efd; /* border color */
+  border-radius: 50%;
+  cursor: pointer;
+  margin-top: -5px; /* to center the thumb on the track */
+  transition: transform 0.2s, background 0.2s;
+}
+
+/* thumb hover effect */
+.custom-audio-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #0d6efd;
+}
+
+/* Firefox's thumb */
+.custom-audio-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  border: 2px solid #0d6efd;
+  border-radius: 50%;
+  cursor: pointer;
+}

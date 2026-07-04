@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import api from "../Config";
 import * as Tone from "tone";
 import "../styles/music_slider.css";
+import "../styles/volum_button.css";
+
 import AlbumCover from "../components/AlbumCover";
 
 interface Song {
@@ -36,6 +38,8 @@ export default function SongTable() {
   const [playingId, setPlayingId] = useState<number | null>(null);
   const reverbRef = React.useRef<Tone.Reverb | null>(null);
   const synthRef = React.useRef<Tone.AMSynth | null>(null);
+  const volumeNodeRef = React.useRef<Tone.Volume | null>(null);
+  const [volume, setVolume] = useState(-10);
 
   const [params, setParams] = useState({
     lang: "en",
@@ -105,7 +109,8 @@ export default function SongTable() {
       if (!song) return;
 
       // loud sound Volume node
-      const vol = new Tone.Volume(5).toDestination(); // +5dB volume boost
+      const vol = new Tone.Volume(volume).toDestination();
+      volumeNodeRef.current = vol;
 
       // ringtom vibe Reverb
       const reverb = new Tone.Reverb({ decay: 1.5, wet: 0.2 }).connect(vol);
@@ -142,6 +147,7 @@ export default function SongTable() {
         if (synthRef.current) synthRef.current.dispose();
         if (reverbRef.current) reverbRef.current.dispose();
         vol.dispose();
+        volumeNodeRef.current = null;
       };
     }
   }, [isPlaying, playingId, songs]);
@@ -337,7 +343,7 @@ export default function SongTable() {
                             />
                           </div>
 
-                          {/* play button and time bar in one line */}
+                          {/* play button volume and time bar in one line */}
                           <div className="mt-3">
                             <div className="d-flex align-items-center gap-3">
                               <i
@@ -356,6 +362,34 @@ export default function SongTable() {
                                   (e.currentTarget.style.transform = "scale(1)")
                                 }
                               ></i>
+
+                              {/* volume slider */}
+                              <div className="d-flex align-items-center gap-2">
+                                <i
+                                  className={`bi ${volume > -30 ? "bi-volume-up-fill" : "bi-volume-mute-fill"} text-secondary`}
+                                ></i>
+                                <input
+                                  type="range"
+                                  className="custom-audio-slider" // 'form-range change'
+                                  style={
+                                    {
+                                      width: "80px",
+                                      "--progress": `${((volume + 40) / 40) * 100}%`, // volume with percentage calculation for slider
+                                    } as React.CSSProperties
+                                  }
+                                  min="-40"
+                                  max="0"
+                                  step="1"
+                                  value={volume}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    setVolume(val);
+                                    if (volumeNodeRef.current) {
+                                      volumeNodeRef.current.volume.value = val;
+                                    }
+                                  }}
+                                />
+                              </div>
 
                               {/* slider container */}
                               <div className="flex-grow-1">
