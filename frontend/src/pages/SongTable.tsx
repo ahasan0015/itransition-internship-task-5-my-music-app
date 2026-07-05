@@ -29,6 +29,11 @@ interface Song {
   };
 }
 
+interface Language {
+  code: string;
+  name: string;
+}
+
 export default function SongTable() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -38,6 +43,7 @@ export default function SongTable() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [volume, setVolume] = useState(-10);
+
   //UX improvements with isloading
   const [isLoading, setIsLoading] = useState(false);
 
@@ -45,11 +51,23 @@ export default function SongTable() {
   const synthRef = React.useRef<Tone.AMSynth | null>(null);
   const volumeNodeRef = React.useRef<Tone.Volume | null>(null);
 
+  //language state for dynamic language selection
+  const [languages, setLanguages] = useState<Language[]>([]);
+
+  //dynamic language
   const [params, setParams] = useState({
     lang: "en",
     seed: 58933423,
     avgLikes: 3.7,
   });
+
+  //language fetch useEffect
+  useEffect(() => {
+    api
+      .get("/languages")
+      .then((res) => setLanguages(res.data))
+      .catch((err) => console.error("Languages load failed:", err));
+  }, []);
 
   // Use effect for songTable API call
   useEffect(() => {
@@ -201,6 +219,7 @@ export default function SongTable() {
   }
 
   //useEffect for updating the current time of the song and checking if it has ended
+
   useEffect(() => {
     let animationFrameId: number;
 
@@ -252,18 +271,23 @@ export default function SongTable() {
       <div className="row mb-4 align-items-center bg-light p-3 border rounded shadow-sm">
         <div className="col-md-3">
           <label className="small text-muted fw-bold">Language</label>
-          <select
-            className="form-select"
-            value={params.lang}
-            onChange={(e) => {
-              setPage(1);
-              setParams({ ...params, lang: e.target.value });
-            }}
-          >
-            <option value="en">English (US)</option>
-            <option value="bn">Bengali</option>
-            <option value="ger">Germany</option>
-          </select>
+         <select
+  className="form-select"
+  value={params.lang}
+  onChange={(e) => {
+    setSongs([]); 
+    setIsLoading(true); 
+    setPage(1); 
+    setParams({ ...params, lang: e.target.value });
+  }}
+>
+  {/* এখানে ম্যাপ করুন */}
+  {languages.map((lang) => (
+    <option key={lang.code} value={lang.code}>
+      {lang.name}
+    </option>
+  ))}
+</select>
         </div>
 
         <div className="col-md-3">
