@@ -5,6 +5,7 @@ import "../styles/music_slider.css";
 import "../styles/volum_button.css";
 
 import AlbumCover from "../components/AlbumCover";
+import SongSkeleton from "../components/SongSkeleton";
 
 interface Song {
   id: number;
@@ -36,10 +37,13 @@ export default function SongTable() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingId, setPlayingId] = useState<number | null>(null);
+  const [volume, setVolume] = useState(-10);
+  //UX improvements with isloading
+  const [isLoading, setIsLoading] = useState(false);
+
   const reverbRef = React.useRef<Tone.Reverb | null>(null);
   const synthRef = React.useRef<Tone.AMSynth | null>(null);
   const volumeNodeRef = React.useRef<Tone.Volume | null>(null);
-  const [volume, setVolume] = useState(-10);
 
   const [params, setParams] = useState({
     lang: "en",
@@ -49,33 +53,47 @@ export default function SongTable() {
 
   // Use effect for songTable API call
   useEffect(() => {
+    const controller = new AbortController(); // for fetch cancellation
+    const signal = controller.signal;
+
+    queueMicrotask(() => {
+      setIsLoading(true);
+    });
+
     const requestParams = { ...params, page };
+
     api
-      .get("/songs", { params: requestParams })
+      .get("/songs", { params: requestParams, signal })
       .then((res) => {
-        console.log("API Response:", res.data); // res.data
-        // setSongs(res.data.data);
-        if (viewMode === "grid") {
-          // grid view
-          setSongs((prev) =>
-            page === 1 ? res.data.data : [...prev, ...res.data.data],
-          );
+        if (viewMode === "grid" && page > 1) {
+          setSongs((prev) => [...prev, ...res.data.data]);
         } else {
-          // table view
           setSongs(res.data.data);
         }
+        setIsLoading(false);
       })
-      .catch((err) => console.error("Error:", err));
+      .catch((err) => {
+        if (err.name !== "CanceledError") {
+          console.error("Error:", err);
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort(); //if componet remove new call cancel first call
+    };
   }, [params, page, viewMode]);
 
   // Infinite scroll for grid view
   useEffect(() => {
     const handleScroll = () => {
-      // only grid mood for scrolling
+      // if isLoading true new call preventing
+      if (isLoading) return;
+
       if (viewMode === "grid") {
         if (
           window.innerHeight + window.scrollY >=
-          document.body.offsetHeight - 500
+          document.body.offsetHeight - 200
         ) {
           setPage((prev) => prev + 1);
         }
@@ -84,13 +102,15 @@ export default function SongTable() {
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [viewMode]);
+  }, [viewMode, isLoading]);
 
-  //view mode
+  //view mode select function for table and grid view
   const switchView = (mode: "table" | "grid") => {
+    // if the same mode is selected, prevent unnecessary re-rendering
+    if (viewMode === mode) return;
+
     setViewMode(mode);
     setPage(1);
-    setSongs([]);
   };
 
   //for pausing the song when user clicks on another song or pause button
@@ -103,39 +123,54 @@ export default function SongTable() {
     setCurrentTime(0);
   }
 
+  //Playback Logic Effect
   useEffect(() => {
     if (isPlaying && playingId !== null) {
       const song = songs.find((s) => s.id === playingId);
       if (!song) return;
 
-      // loud sound Volume node
+      // Audio Graph
       const vol = new Tone.Volume(volume).toDestination();
       volumeNodeRef.current = vol;
 
-      // ringtom vibe Reverb
       const reverb = new Tone.Reverb({ decay: 1.5, wet: 0.2 }).connect(vol);
       reverbRef.current = reverb;
 
-      // rington sound AMSynth high quality sound
       const synth = new Tone.AMSynth({
-        harmonicity: 3, // this will make the sound much brighter
-        detune: 0,
+        harmonicity: 3,
         oscillator: { type: "sine" },
         envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.5 },
-        modulation: { type: "square" },
-        modulationEnvelope: { attack: 0.1, decay: 0, sustain: 1, release: 0.5 },
       }).connect(reverb);
-
       synthRef.current = synth;
+
+      // Calculate End Time
+      const lastNote = song.music_theory.notes.reduce((max, note) =>
+        note.time > max.time ? note : max,
+      );
+      const endTime =
+        lastNote.time + Tone.Time(lastNote.duration).toSeconds() + 1;
 
       const transport = Tone.getTransport();
       transport.stop();
       transport.cancel();
       transport.bpm.value = song.music_theory.tempo;
 
+      // Schedule Stop
+      transport.scheduleOnce(() => {
+        transport.stop();
+        transport.cancel();
+        setIsPlaying(false);
+        setPlayingId(null);
+        setCurrentTime(0);
+      }, endTime);
+
       const part = new Tone.Part((time, value) => {
-        // rhythm-based velocity control
-        synth.triggerAttackRelease(value.note, "8n", time, value.velocity || 1);
+        synth.triggerAttackRelease(
+          value.note,
+          value.duration,
+          time,
+          value.velocity || 1,
+        );
       }, song.music_theory.notes);
 
       part.start(0);
@@ -144,16 +179,14 @@ export default function SongTable() {
       return () => {
         transport.stop();
         transport.cancel();
-        if (synthRef.current) synthRef.current.dispose();
-        if (reverbRef.current) reverbRef.current.dispose();
+        synth.dispose();
+        reverb.dispose();
         vol.dispose();
-        volumeNodeRef.current = null;
       };
     }
-  }, [isPlaying, playingId, songs]);
+  }, [isPlaying, playingId, songs, volume]);
 
   //for playing a song
-
   async function playSong(song: Song) {
     // browser audio context initialization
     await Tone.start();
@@ -167,27 +200,22 @@ export default function SongTable() {
     }
   }
 
-  //useEffect for updating the current
-  //time of the song and checking if it has ended
+  //useEffect for updating the current time of the song and checking if it has ended
   useEffect(() => {
     let animationFrameId: number;
 
     const updateTime = () => {
       if (isPlaying && playingId !== null) {
-        // find the current song based on playingId
-        const currentSong = songs.find((s) => s.id === playingId);
-        if (currentSong) {
-          const songDuration = parseInt(currentSong.duration.replace("s", ""));
-          const currentTime = Tone.getTransport().seconds;
+        const currentTime = Tone.getTransport().seconds;
 
-          // check if the song has ended
-          if (currentTime >= songDuration) {
-            pauseSong(); // this will stop the automatic player
-            return; // break the loop
+        setCurrentTime((prevTime) => {
+          // if the value is the same, no need to re-render
+          if (Math.floor(prevTime) === Math.floor(currentTime)) {
+            return prevTime;
           }
+          return currentTime;
+        });
 
-          setCurrentTime(currentTime);
-        }
         animationFrameId = requestAnimationFrame(updateTime);
       }
     };
@@ -204,11 +232,19 @@ export default function SongTable() {
   }, [isPlaying, playingId, songs]);
 
   // second MM:SS format function
+
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
+
+  // for volume change useEffect
+  useEffect(() => {
+    if (volumeNodeRef.current) {
+      volumeNodeRef.current.volume.value = volume;
+    }
+  }, [volume]); // here only for volume
 
   return (
     <div className="container mt-4">
@@ -255,7 +291,9 @@ export default function SongTable() {
             </button>
           </div>
         </div>
+
         {/* Likes slider */}
+
         <div className="col-md-4">
           <label className="small text-muted fw-bold">
             Likes: {params.avgLikes}
@@ -292,227 +330,277 @@ export default function SongTable() {
         </div>
       </div>
 
-      {/* Table */}
-      {viewMode === "table" ? (
-        <div className="table-responsive">
-          <table className="table table-hover align-middle">
-            <thead className="table-light">
-              <tr>
-                <th style={{ width: "5%" }}>#</th>
-                <th>Song</th>
-                <th>Artist</th>
-                <th>Album</th>
-                <th>Genre</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {songs.map((song) => (
-                <React.Fragment key={song.id}>
-                  <tr
-                    onClick={() => {
-                      // if click on a different row, stop the current song
-                      if (expandedId !== song.id) {
-                        pauseSong();
-                      }
-                      setExpandedId(expandedId === song.id ? null : song.id);
-                    }}
-                    style={{ cursor: "pointer" }}
-                    className={expandedId === song.id ? "table-active" : ""}
-                  >
-                    <td>
-                      <i
-                        className={`bi bi-chevron-${expandedId === song.id ? "up" : "down"} me-2`}
-                      ></i>
-                      {song.id}
-                    </td>
-                    <td className="fw-semibold">{song.title}</td>
-                    <td>{song.artist}</td>
-                    <td>{song.album}</td>
-                    <td>
-                      <span className="badge bg-secondary">{song.genre}</span>
-                    </td>
-                  </tr>
-
-                  {/* Sample Expanded Row */}
-                  {expandedId === song.id && (
-                    <tr className="bg-white">
-                      <td colSpan={5} className="p-4 border-bottom">
-                        <div className="d-flex align-items-center gap-4">
-                          <div
-                            className="bg-dark rounded"
-                            style={{ width: "120px", height: "120px" }}
-                          >
-                            {/* album cover from utils/CoverGenerator.ts */}
-                            <AlbumCover
-                              title={song.title} // each song data
-                              artist={song.artist}
-                            />
-                          </div>
-
-                          {/* play button volume and time bar in one line */}
-                          <div className="mt-3">
-                            <div className="d-flex align-items-center gap-3">
-                              <i
-                                className={`bi ${isPlaying && playingId === song.id ? "bi-pause-circle-fill" : "bi-play-circle-fill"} text-primary`}
-                                onClick={() => playSong(song)}
-                                style={{
-                                  fontSize: "2rem",
-                                  cursor: "pointer",
-                                  transition: "transform 0.2s ease", //for smooth hover
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.transform =
-                                    "scale(1.1)")
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.transform = "scale(1)")
-                                }
-                              ></i>
-
-                              {/* volume slider */}
-                              <div className="d-flex align-items-center gap-2">
-                                <i
-                                  className={`bi ${volume > -30 ? "bi-volume-up-fill" : "bi-volume-mute-fill"} text-secondary`}
-                                ></i>
-                                <input
-                                  type="range"
-                                  className="custom-audio-slider" // 'form-range change'
-                                  style={
-                                    {
-                                      width: "80px",
-                                      "--progress": `${((volume + 40) / 40) * 100}%`, // volume with percentage calculation for slider
-                                    } as React.CSSProperties
-                                  }
-                                  min="-40"
-                                  max="0"
-                                  step="1"
-                                  value={volume}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value);
-                                    setVolume(val);
-                                    if (volumeNodeRef.current) {
-                                      volumeNodeRef.current.volume.value = val;
-                                    }
-                                  }}
-                                />
-                              </div>
-
-                              {/* slider container */}
-                              <div className="flex-grow-1">
-                                <div className="d-flex justify-content-between text-muted small fw-bold mb-1">
-                                  <span>{formatTime(currentTime)}</span>
-                                  <span>
-                                    {formatTime(
-                                      parseInt(song.duration.replace("s", "")),
-                                    )}
-                                  </span>
-                                </div>
-                                <input
-                                  type="range"
-                                  className="custom-audio-slider"
-                                  min="0"
-                                  max={parseInt(song.duration.replace("s", ""))}
-                                  value={currentTime}
-                                  // progress percentage calculation
-                                  style={
-                                    {
-                                      "--progress": `${(currentTime / parseInt(song.duration.replace("s", ""))) * 100}%`,
-                                    } as React.CSSProperties
-                                  }
-                                  onChange={(e) => {
-                                    const seekTime = parseFloat(e.target.value);
-                                    Tone.getTransport().seconds = seekTime;
-                                    setCurrentTime(seekTime);
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                          <div>
-                            <h4 className="mb-1">{song.title}</h4>
-
-                            <p className="text-muted mb-2">
-                              From {song.album} by {song.artist}
-                            </p>
-
-                            <button className="btn btn-sm btn-outline-primary">
-                              <i className="bi bi-hand-thumbs-up"></i> Like{" "}
-                              {song.likes}
-                            </button>
-
-                            {/* Review Section */}
-                            <div className="mt-3 pt-2 border-top">
-                              <small
-                                className="text-muted text-uppercase fw-bold"
-                                style={{ fontSize: "0.7rem" }}
-                              >
-                                Listener Review
-                              </small>
-                              <p
-                                className="fst-italic text-secondary"
-                                style={{ fontSize: "0.95rem" }}
-                              >
-                                <i className="bi bi-chat-quote-fill me-1"></i> "
-                                {song.review}"
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+      {isLoading && songs.length === 0 ? (
+        // loading indicator for initial load
+        <div className="d-flex justify-content-center align-items-center py-5">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <span className="ms-3 fw-bold">Generating songs...</span>
         </div>
       ) : (
-        <div className="row g-4">
-          {songs.map((song) => (
-            <div key={song.id} className="col-12 col-md-6 col-lg-4">
-              <div className="card shadow-sm h-100">
-                <div className="card-body">
-                  <h5 className="card-title">{song.title}</h5>
-                  <p className="card-text text-muted">
-                    {song.artist} - {song.album}
-                  </p>
-                  <span className="badge bg-secondary">{song.genre}</span>
-                </div>
-              </div>
+        <>
+          {/* Table */}
+          {viewMode === "table" ? (
+            <div className="table-responsive">
+              <table className="table table-hover align-middle">
+                <thead className="table-light">
+                  <tr>
+                    <th style={{ width: "5%" }}>#</th>
+                    <th>Song</th>
+                    <th>Artist</th>
+                    <th>Album</th>
+                    <th>Genre</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {songs.map((song) => (
+                    <React.Fragment key={song.id}>
+                      <tr
+                        onClick={() => {
+                          // if click on a different row, stop the current song
+                          if (expandedId !== song.id) {
+                            pauseSong();
+                          }
+                          setExpandedId(
+                            expandedId === song.id ? null : song.id,
+                          );
+                        }}
+                        style={{ cursor: "pointer" }}
+                        className={expandedId === song.id ? "table-active" : ""}
+                      >
+                        <td>
+                          <i
+                            className={`bi bi-chevron-${expandedId === song.id ? "up" : "down"} me-2`}
+                          ></i>
+                          {song.id}
+                        </td>
+                        <td className="fw-semibold">{song.title}</td>
+                        <td>{song.artist}</td>
+                        <td>{song.album}</td>
+                        <td>
+                          <span className="badge bg-secondary">
+                            {song.genre}
+                          </span>
+                        </td>
+                      </tr>
+
+                      {/* Sample Expanded Row */}
+                      {expandedId === song.id && (
+                        <tr className="bg-white">
+                          <td colSpan={5} className="p-4 border-bottom">
+                            <div className="d-flex align-items-center gap-4">
+                              <div
+                                className="bg-dark rounded"
+                                style={{ width: "120px", height: "120px" }}
+                              >
+                                {/* album cover from utils/CoverGenerator.ts */}
+                                <AlbumCover
+                                  title={song.title} // each song data
+                                  artist={song.artist}
+                                />
+                              </div>
+
+                              {/* play button volume and time bar in one line */}
+                              <div className="mt-3">
+                                <div className="d-flex align-items-center gap-3">
+                                  <i
+                                    className={`bi ${isPlaying && playingId === song.id ? "bi-pause-circle-fill" : "bi-play-circle-fill"} text-primary`}
+                                    onClick={() => playSong(song)}
+                                    style={{
+                                      fontSize: "2rem",
+                                      cursor: "pointer",
+                                      transition: "transform 0.2s ease", //for smooth hover
+                                    }}
+                                    onMouseEnter={(e) =>
+                                      (e.currentTarget.style.transform =
+                                        "scale(1.1)")
+                                    }
+                                    onMouseLeave={(e) =>
+                                      (e.currentTarget.style.transform =
+                                        "scale(1)")
+                                    }
+                                  ></i>
+
+                                  {/* volume slider */}
+                                  <div className="d-flex align-items-center gap-2">
+                                    <i
+                                      className={`bi ${volume > -30 ? "bi-volume-up-fill" : "bi-volume-mute-fill"} text-secondary`}
+                                    ></i>
+                                    <input
+                                      type="range"
+                                      className="custom-audio-slider" // 'form-range change'
+                                      style={
+                                        {
+                                          width: "80px",
+                                          "--progress": `${((volume + 40) / 40) * 100}%`, // volume with percentage calculation for slider
+                                        } as React.CSSProperties
+                                      }
+                                      min="-40"
+                                      max="0"
+                                      step="1"
+                                      value={volume}
+                                      onChange={(e) => {
+                                        const val = parseFloat(e.target.value);
+                                        setVolume(val);
+                                        if (volumeNodeRef.current) {
+                                          volumeNodeRef.current.volume.value =
+                                            val;
+                                        }
+                                      }}
+                                    />
+                                  </div>
+
+                                  {/* slider container */}
+                                  <div className="flex-grow-1">
+                                    <div className="d-flex justify-content-between text-muted small fw-bold mb-1">
+                                      <span>{formatTime(currentTime)}</span>
+                                      <span>
+                                        {formatTime(
+                                          parseInt(
+                                            song.duration.replace("s", ""),
+                                          ),
+                                        )}
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      className="custom-audio-slider"
+                                      min="0"
+                                      max={parseInt(
+                                        song.duration.replace("s", ""),
+                                      )}
+                                      value={currentTime}
+                                      // progress percentage calculation
+                                      style={
+                                        {
+                                          "--progress": `${(currentTime / parseInt(song.duration.replace("s", ""))) * 100}%`,
+                                        } as React.CSSProperties
+                                      }
+                                      onChange={(e) => {
+                                        const seekTime = parseFloat(
+                                          e.target.value,
+                                        );
+                                        Tone.getTransport().seconds = seekTime;
+                                        setCurrentTime(seekTime);
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div>
+                                <h4 className="mb-1">{song.title}</h4>
+
+                                <p className="text-muted mb-2">
+                                  From {song.album} by {song.artist}
+                                </p>
+
+                                <button className="btn btn-sm btn-outline-primary">
+                                  <i className="bi bi-hand-thumbs-up"></i> Like{" "}
+                                  {song.likes}
+                                </button>
+
+                                {/* Review Section */}
+                                <div className="mt-3 pt-2 border-top">
+                                  <small
+                                    className="text-muted text-uppercase fw-bold"
+                                    style={{ fontSize: "0.7rem" }}
+                                  >
+                                    Listener Review
+                                  </small>
+                                  <p
+                                    className="fst-italic text-secondary"
+                                    style={{ fontSize: "0.95rem" }}
+                                  >
+                                    <i className="bi bi-chat-quote-fill me-1"></i>{" "}
+                                    "{song.review}"
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
-        </div>
-      )}
+          ) : (
+            <div className="row g-4">
+              {/* Skeleton or card render*/}
+              {isLoading && songs.length === 0
+                ? [...Array(6)].map((_, i) => (
+                    <div key={i} className="col-12 col-md-6 col-lg-4">
+                      <SongSkeleton />
+                    </div>
+                  ))
+                : songs.map((song) => (
+                    <div key={song.id} className="col-12 col-md-6 col-lg-4">
+                      <div className="card shadow-sm h-100">
+                        <div className="card-body">
+                          <h5 className="card-title">{song.title}</h5>
+                          <p className="card-text text-muted">
+                            {song.artist} - {song.album}
+                          </p>
+                          <span className="badge bg-secondary">
+                            {song.genre}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+            </div>
+          )}
 
-      {/* Pagination (Only for Table View) */}
-      {viewMode === "table" && (
-        <nav className="d-flex justify-content-center mt-4">
-          <ul className="pagination">
-            {/* Previous Button */}
-            <li className={`page-item ${page === 1 ? "disabled" : ""}`}>
-              <button className="page-link" onClick={() => setPage(page - 1)}>
-                &laquo; Prev
-              </button>
-            </li>
+          {/* Loading indicator for infinite scroll */}
+          {isLoading && songs.length > 0 && (
+            <div className="text-center py-4">
+              <div
+                className="spinner-border spinner-border-sm text-primary"
+                role="status"
+              ></div>
+              <span className="ms-2 text-muted">Loading more songs...</span>
+            </div>
+          )}
 
-            {/* Dynamic Page Numbers */}
-            {[page, page + 1, page + 2].map((p) => (
-              <li key={p} className={`page-item ${page === p ? "active" : ""}`}>
-                <button className="page-link" onClick={() => setPage(p)}>
-                  {p}
-                </button>
-              </li>
-            ))}
+          {/* Pagination (Only for Table View) */}
+          {viewMode === "table" && (
+            <nav className="d-flex justify-content-center mt-4">
+              <ul className="pagination">
+                <li className={`page-item ${page === 1 ? "disabled" : ""}`}>
+                  <button
+                    className="page-link"
+                    onClick={() => setPage(page - 1)}
+                  >
+                    &laquo; Prev
+                  </button>
+                </li>
 
-            {/* Next Button */}
-            <li className="page-item">
-              <button className="page-link" onClick={() => setPage(page + 1)}>
-                Next &raquo;
-              </button>
-            </li>
-          </ul>
-        </nav>
+                {[page, page + 1, page + 2].map((p) => (
+                  <li
+                    key={p}
+                    className={`page-item ${page === p ? "active" : ""}`}
+                  >
+                    <button className="page-link" onClick={() => setPage(p)}>
+                      {p}
+                    </button>
+                  </li>
+                ))}
+
+                <li className="page-item">
+                  <button
+                    className="page-link"
+                    onClick={() => setPage(page + 1)}
+                  >
+                    Next &raquo;
+                  </button>
+                </li>
+              </ul>
+            </nav>
+          )}
+        </>
       )}
     </div>
   );
