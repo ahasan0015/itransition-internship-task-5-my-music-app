@@ -2,7 +2,11 @@ import axios from "axios";
 import toast from "react-hot-toast";
 
 const api = axios.create({
+  //for local development
   baseURL: "http://127.0.0.1:8000/api",
+
+  //for hosting 
+  // baseURL: 'https://api2.ahasanhabibroxy.online/api',
   headers: {
     Accept: "application/json",
     "Content-Type": "application/json",

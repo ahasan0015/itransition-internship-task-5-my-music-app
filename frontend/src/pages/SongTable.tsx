@@ -127,6 +127,8 @@ export default function SongTable() {
     // if the same mode is selected, prevent unnecessary re-rendering
     if (viewMode === mode) return;
 
+    pauseSong();
+
     setViewMode(mode);
     setPage(1);
   };
