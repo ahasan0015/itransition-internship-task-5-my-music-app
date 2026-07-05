@@ -58,6 +58,7 @@ class SongController extends Controller
                 'review' => $review,
                 'music_theory' => $this->getMusicTheory($seed, $page, $i, $duration) 
             ];
+            
         }
 
         return response()->json([
@@ -184,4 +185,20 @@ private function generateRandomReview(SequenceGenerator $gen, string $lang): str
         $data = $reviews[$lang] ?? $reviews['en'];
         return $data[$gen->nextInt(0, count($data) - 1)];
     }
+
+    // language controll method.php
+public function getLanguages()
+{
+    $musicData = config('music_locales');
+    
+    // config file to lang return
+    $languages = collect($musicData)->map(function ($data, $code) {
+        return [
+            'code' => $code,
+            'name' => $data['label'] ?? strtoupper($code) 
+        ];
+    })->values();
+
+    return response()->json($languages);
+}
 }

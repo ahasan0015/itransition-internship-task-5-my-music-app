@@ -9,3 +9,4 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::get('/songs', [SongController::class, 'index']);
+Route::get('/languages', [SongController::class, 'getLanguages']);
