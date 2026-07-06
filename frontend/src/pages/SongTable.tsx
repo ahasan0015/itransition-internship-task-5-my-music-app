@@ -204,7 +204,7 @@ export default function SongTable() {
         vol.dispose();
       };
     }
-  }, [isPlaying, playingId, songs, volume]);
+  }, [isPlaying, playingId, songs]);
 
   //for playing a song
   async function playSong(song: Song) {
@@ -283,7 +283,7 @@ export default function SongTable() {
     setParams({ ...params, lang: e.target.value });
   }}
 >
-  {/* এখানে ম্যাপ করুন */}
+  {/*map languages */}
   {languages.map((lang) => (
     <option key={lang.code} value={lang.code}>
       {lang.name}
